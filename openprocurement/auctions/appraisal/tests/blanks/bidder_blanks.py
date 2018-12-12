@@ -396,16 +396,41 @@ def delete_auction_bidder(self):
     self.assertEqual(response.status, '201 Created')
     self.assertEqual(response.content_type, 'application/json')
     bidder = response.json['data']
+    bid_token = response.json['access']['token']
+    bid_access_header = {'X-Access-Token': str(bid_token)}
+    auction_access_header = {'X-Access-Token': str(self.auction_token)}
 
     response = self.app.delete('/auctions/{}/bids/{}'.format(self.auction_id, bidder['id']), status=403)
     self.assertEqual(response.status, '403 Forbidden')
-    # self.assertEqual(response.status, '200 OK')
-    # self.assertEqual(response.content_type, 'application/json')
-    # self.assertEqual(response.json['data'], bidder)
 
-    # revisions = self.db.get(self.auction_id).get('revisions')
-    # self.assertTrue(any([i for i in revisions[-2][u'changes'] if i['op'] == u'remove' and i['path'] == u'/bids']))
-    # self.assertTrue(any([i for i in revisions[-1][u'changes'] if i['op'] == u'add' and i['path'] == u'/bids']))
+    response = self.app.delete(
+        '/auctions/{}/bids/{}'.format(self.auction_id, bidder['id']),
+        headers=auction_access_header,
+        status=403
+    )
+    self.assertEqual(response.status, '403 Forbidden')
+
+    # Delete bid and check if it doesn`t exists
+    response = self.app.delete(
+        '/auctions/{}/bids/{}'.format(self.auction_id, bidder['id']),
+        headers=bid_access_header,
+    )
+    self.assertEqual(response.status, '200 OK')
+    self.assertEqual(response.content_type, 'application/json')
+    self.assertEqual(response.json['data'], bidder)
+
+    response = self.app.get(
+        '/auctions/{}/bids/{}'.format(self.auction_id, bidder['id']),
+        headers=bid_access_header,
+        status=404
+    )
+    self.assertEqual(response.status, '404 Not Found')
+    self.assertEqual(response.content_type, 'application/json')
+    self.assertEqual(response.json['status'], 'error')
+    self.assertEqual(response.json['errors'], [
+        {u'description': u'Not Found', u'location':
+            u'url', u'name': u'bid_id'}
+    ])
 
     response = self.app.delete('/auctions/{}/bids/some_id'.format(self.auction_id), status=404)
     self.assertEqual(response.status, '404 Not Found')
